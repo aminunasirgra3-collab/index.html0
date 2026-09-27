@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Malumfashi Education & CBT</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#f4f6fa;color:#172033}
+button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#111827,#2563eb);padding:20px}
+.box{background:white;border-radius:16px;padding:25px;width:min(430px,100%);box-shadow:0 20px 50px #0004}
+input,select,textarea{width:100%;padding:11px;border:1px solid #ddd;border-radius:9px;margin:6px 0 14px}
+.btn{background:#2563eb;color:#fff;border:0;border-radius:9px;padding:11px 16px;font-weight:700}.danger{background:#dc2626}.success{background:#16a34a}
+.top{height:62px;background:#fff;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;padding:0 18px;position:sticky;top:0;z-index:20}
+.side{position:fixed;top:62px;bottom:0;width:240px;background:#111827;padding:14px;overflow:auto}.side button{display:block;width:100%;text-align:left;background:transparent;color:#cbd5e1;border:0;padding:11px;border-radius:8px;margin:2px 0}.side button:hover{background:#2563eb;color:#fff}
+.main{margin-left:240px;padding:22px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:13px;padding:17px;margin-bottom:15px}.stat{font-size:28px;font-weight:800}
+.tablebox{overflow:auto;background:#fff;border:1px solid #ddd;border-radius:12px}.table{width:100%;border-collapse:collapse;min-width:650px}.table th,.table td{padding:11px;border-bottom:1px solid #eee;text-align:left}.table th{background:#f8fafc}
+.timer{position:sticky;top:72px;background:#111827;color:white;padding:12px;border-radius:9px;text-align:center;font-weight:bold;margin-bottom:15px}
+.q{background:#fff;padding:17px;border-radius:12px;border:1px solid #ddd;margin-bottom:13px}.opt{display:block;border:1px solid #ddd;padding:10px;border-radius:8px;margin:7px 0}
+@media(max-width:800px){.side{transform:translateX(-100%);transition:.2s}.side.open{transform:translateX(0);z-index:30}.main{margin-left:0}.grid{grid-template-columns:repeat(2,1fr)}.menu{display:block!important}}
+@media(max-width:500px){.grid{grid-template-columns:1fr}}
+.menu{display:none;background:#e5e7eb;border:0;padding:9px;border-radius:8px}
+</style>
+</head>
+<body>
+<div id="login" class="login"><div class="box">
+<h1>Malumfashi Education</h1><p>Education & CBT Management System</p><div id="msg"></div>
+<form id="loginForm"><label>Email</label><input id="email" type="email" required>
+<label>Password</label><input id="password" type="password" required>
+<button class="btn" style="width:100%">Sign In</button></form></div></div>
+
+<div id="app" class="hidden">
+<header class="top"><div><button class="menu" onclick="document.getElementById('side').classList.toggle('open')">☰</button> <b>Malumfashi Education & CBT</b></div>
+<div><span id="role"></span> <button class="btn danger" onclick="logout()">Logout</button></div></header>
+<aside id="side" class="side"></aside><main id="main" class="main"></main></div>
+
+<script>
+const URL="https://uhtbuhptbhpwhpixzcdb.supabase.co";
+const KEY="sb_publishable_ZNRY_psqPaNAtVT4_1FTKQ_8g1vQ-XG";
+const sb=supabase.createClient(URL,KEY);
+let profile=null,attempt=null,exam=null,timer=null;
+
+const $=x=>document.getElementById(x);
+const esc=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+function err(x){$("main").innerHTML='<div class="card" style="color:#b91c1c">'+esc(x.message||x)+'</div>'}
+
+$("loginForm").onsubmit=async e=>{
+ e.preventDefault();$("msg").innerHTML="";
+ const {error}=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});
+ if(error)$("msg").innerHTML='<p style="color:#b91c1c">'+esc(error.message)+'</p>';
+};
+
+async function start(){
+ const {data}=await sb.auth.getSession();
+ if(data.session)load(); else $("login").classList.remove("hidden");
+ sb.auth.onAuthStateChange((_e,s)=>{if(s)load();else{$("app").classList.add("hidden");$("login").classList.remove("hidden")}});
+}
+async function load(){
+ const {data,error}=await sb.rpc("get_my_profile");
+ if(error||!data)return;
+ profile=Array.isArray(data)?data[0]:data;
+ $("login").classList.add("hidden");$("app").classList.remove("hidden");
+ $("role").textContent=profile.role;
+ menu();page("dashboard");
+}
+async function logout(){await sb.auth.signOut()}
+function menu(){
+ let a=[["dashboard","Dashboard"],["cbt",profile.role==="student"?"My CBT Exams":"CBT Exams"],["results",profile.role==="student"?"My Results":"Results"],["subjects","Subjects"],["students","Students"],["teachers","Teachers"],["questions","Question Bank"],["materials","Learning Materials"],["attendance","Attendance"],["fees","Fees"],["announcements","Announcements"],["ai","AI Assistant"],["settings","Settings"]];
+ if(profile.role==="parent")a=[["dashboard","Dashboard"],["results","Children Results"],["announcements","Announcements"],["ai","AI Assistant"],["settings","Settings"]];
+ if(["student","parent"].includes(profile.role))a=a.filter(x=>!["students","teachers","questions","subjects","attendance","fees","materials"].includes(x[0]));
+ if(["super_admin","school_admin"].includes(profile.role))a.unshift(["schools","Schools"]);
+ if(profile.role==="super_admin")a.splice(1,0,["user-management","User Management"]);
+ if(["super_admin","school_admin","teacher"].includes(profile.role)) a.push(["school-dashboard","School Dashboard"],["departments","Departments"],["practical","Practical"],["rooms","Rooms"],["bookings","Room Bookings"]);
+ $("side").innerHTML=a.map(x=>'<button onclick="page(\''+x[0]+'\')">'+x[1]+'</button>').join("");
+}
+async function page(p){
+ $("side").classList.remove("open");$("main").innerHTML='<div class="card">Loading...</div>';
+ try{
+  if(p==="dashboard")return dashboard();
+  if(p==="cbt")return cbt();
+  if(p==="results")return list("Results","results",["student_id","exam_id","score","percentage","grade"]);
+  if(p==="schools")return schoolsPage();
+  if(p==="school-dashboard")return schoolDashboard();
+  if(p==="departments")return departmentsPage();
+  if(p==="practical")return practicalPage();
+  if(p==="rooms")return roomsPage();
+  if(p==="bookings")return bookingsPage();
+  if(p==="user-management")return userManagement();
+  if(p==="students")return list("Students","students",["admission_number","first_name","last_name","gender","class_id"]);
+  if(p==="teachers")return list("Teachers","teachers",["employee_number","first_name","last_name","email"]);
+  if(p==="subjects")return list("Subjects","subjects",["name","code","department_id"]);
+  if(p==="questions")return list("Question Bank","questions",["question_text","question_type","marks"]);
+  if(p==="materials")return list("Learning Materials","learning_materials",["title","subject_id","material_type"]);
+  if(p==="attendance")return list("Attendance","attendance",["student_id","date","status"]);
+  if(p==="fees")return list("Fees","fees",["student_id","amount","payment_status"]);
+  if(p==="announcements")return list("Announcements","announcements",["title","message","created_at"]);
+  if(p==="ai")return ai(); if(p==="settings")return settings();
+ }catch(e){err(e)}
+}
+async function schoolsPage(){
+ const {data,error}=await sb.from("schools").select("*").order("created_at",{ascending:false});
+ if(error)throw error;
+ const rows=(data||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.code)}</td><td>${esc(r.phone)}</td><td>${esc(r.email)}</td><td>${r.is_active?"Active":"Inactive"}</td></tr>`).join("");
+ $("main").innerHTML=`<h1>Schools</h1>
+ <div class="card"><h3>Create School</h3><form id="schoolForm" class="grid" style="grid-template-columns:repeat(2,1fr)">
+ <div><label>Name</label><input id="sn" required></div><div><label>Code</label><input id="sc"></div>
+ <div><label>Phone</label><input id="sp"></div><div><label>Email</label><input id="se" type="email"></div>
+ <div><label>Address</label><input id="sa"></div><div><label>City</label><input id="sct" value="Malumfashi"></div>
+ <div><label>State</label><input id="sst" value="Katsina"></div><div style="display:flex;align-items:end"><button class="btn success">Create School</button></div>
+ </form><div id="schoolMsg"></div></div>
+ <h3>Schools</h3>${table(data,["name","code","phone","email","is_active"])}`;
+ $("schoolForm").onsubmit=async e=>{e.preventDefault();
+   const {error}=await sb.rpc("create_school",{p_name:$("sn").value.trim(),p_code:$("sc").value.trim()||null,p_phone:$("sp").value.trim()||null,p_email:$("se").value.trim()||null,p_address:$("sa").value.trim()||null,p_city:$("sct").value.trim()||null,p_state:$("sst").value.trim()||null});
+   if(error){$("schoolMsg").innerHTML='<p style="color:#b91c1c">'+esc(error.message)+'</p>';return}
+   $("schoolMsg").innerHTML='<p style="color:#15803d">School created successfully.</p>';schoolsPage();
+ };
+}
+async function userManagement(){
+ $("main").innerHTML=`<h1>User Management</h1>
+ <div class="card"><p>Create login accounts securely through a Supabase Edge Function named <b>create-user</b>. Do not put a service-role key in this HTML.</p>
+ <form id="userForm" class="grid" style="grid-template-columns:repeat(2,1fr)">
+ <div><label>Full Name</label><input id="un" required></div><div><label>Email</label><input id="ue" type="email" required></div>
+ <div><label>Temporary Password</label><input id="up" type="password" minlength="8" required></div>
+ <div><label>Role</label><select id="ur"><option>school_admin</option><option>teacher</option><option>student</option><option>parent</option></select></div>
+ <div><label>School ID</label><input id="us"></div><div style="display:flex;align-items:end"><button class="btn success">Create User</button></div>
+ </form><div id="userMsg"></div></div>`;
+ $("userForm").onsubmit=async e=>{e.preventDefault();$("userMsg").innerHTML='<p>Creating user...</p>';
+   const {data,error}=await sb.functions.invoke("create-user",{body:{full_name:$("un").value.trim(),email:$("ue").value.trim(),password:$("up").value,role:$("ur").value,school_id:$("us").value.trim()||null}});
+   if(error){$("userMsg").innerHTML='<p style="color:#b91c1c">'+esc(error.message)+'</p>';return}
+   $("userMsg").innerHTML='<p style="color:#15803d">User created successfully.</p><pre>'+esc(JSON.stringify(data,null,2))+'</pre>';
+ };
+}
+async function dashboard(){
+ let tables=profile.role==="student"?["exams","results","attendance","learning_materials"]:["students","teachers","subjects","exams"];
+ let names=profile.role==="student"?["Exams","Results","Attendance","Materials"]:["Students","Teachers","Subjects","Exams"];
+ let cards="";
+ for(let i=0;i<tables.length;i++){const {count}=await sb.from(tables[i]).select("*",{count:"exact",head:true});cards+='<div class="card"><small>'+names[i]+'</small><div class="stat">'+(count??0)+'</div></div>'}
+ $("main").innerHTML='<h1>Dashboard</h1><p>Welcome, '+esc(profile.full_name||profile.email)+'</p><div class="grid">'+cards+'</div>';
+}
+async function list(title,t,cols){
+ const {data,error}=await sb.from(t).select("*").limit(200).order("created_at",{ascending:false});
+ if(error)throw error;
+ $("main").innerHTML='<h1>'+title+'</h1><div class="tablebox"><table class="table"><thead><tr>'+cols.map(c=>'<th>'+c.replaceAll("_"," ")+'</th>').join("")+'</tr></thead><tbody>'+
+ (data||[]).map(r=>'<tr>'+cols.map(c=>'<td>'+esc(r[c])+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
+}
+async function cbt(){
+ const {data,error}=await sb.from("exams").select("id,title,description,status,duration_minutes,total_marks").order("created_at",{ascending:false});
+ if(error)throw error;
+ if(profile.role!=="student"){
+  $("main").innerHTML='<h1>CBT Exams</h1>'+table(data,["title","status","duration_minutes","total_marks"]);
+  return;
+ }
+ $("main").innerHTML='<h1>My CBT Exams</h1>'+(data||[]).map(e=>'<div class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.description)+'</p><b>'+esc(e.duration_minutes)+' minutes</b><br><br><button class="btn" '+(["published","active"].includes(e.status)?"":"disabled")+' onclick="startExam(\''+e.id+'\')">Start Exam</button></div>').join("");
+}
+function table(data,cols){return '<div class="tablebox"><table class="table"><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join("")+'</tr></thead><tbody>'+(data||[]).map(r=>'<tr>'+cols.map(c=>'<td>'+esc(r[c])+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>'}
+async function startExam(id){
+ const a=await sb.rpc("start_exam",{p_exam_id:id}); if(a.error)return alert(a.error.message); attempt=a.data;
+ const e=await sb.from("exams").select("*").eq("id",id).single();if(e.error)return alert(e.error.message);exam=e.data;
+ const q=await sb.rpc("get_exam_questions",{p_exam_id:id});if(q.error)return alert(q.error.message);
+ renderExam(q.data||[]);
+}
+function renderExam(qs){
+ let end=Date.now()+(exam.duration_minutes||30)*60000;
+ $("main").innerHTML='<div class="timer" id="timer"></div><h1>'+esc(exam.title)+'</h1>'+qs.map((q,i)=>{
+  let o=q.options;if(typeof o==="string")try{o=JSON.parse(o)}catch{}
+  let arr=Array.isArray(o)?o:Object.entries(o||{}).map(x=>({key:x[0],value:x[1]}));if(!arr.length)arr=["True","False"];
+  return '<div class="q"><b>Question '+(i+1)+'</b><p>'+esc(q.question_text)+'</p>'+arr.map(x=>{let v=typeof x==="object"?(x.value??x.text??x.label??x.key):x;return '<label class="opt"><input type="radio" name="q'+q.question_id+'" onchange="answer(\''+q.question_id+'\',this.value)" value="'+esc(v)+'"> '+esc(v)+'</label>'}).join("")+'</div>'
+ }).join("")+'<button class="btn success" onclick="submit()">Submit Exam</button>';
+ clearInterval(timer);timer=setInterval(()=>{let s=Math.max(0,Math.floor((end-Date.now())/1000));$("timer").textContent="Time remaining: "+String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");if(s===0){clearInterval(timer);submit(true)}},500);
+}
+async function answer(q,a){const r=await sb.rpc("submit_exam_answer",{p_attempt_id:attempt,p_question_id:q,p_answer:a});if(r.error)alert(r.error.message)}
+async function submit(auto=false){clearInterval(timer);const r=await sb.rpc("submit_exam",{p_attempt_id:attempt});if(r.error)return alert(r.error.message);alert(auto?"Time expired. Exam auto-submitted.":"Exam submitted successfully.");attempt=null;page("cbt")}
+async function schoolDashboard(){
+ const cards=[
+  ["🔬 Science","Laboratories, Physics, Chemistry, Biology and practical work."],
+  ["📚 Arts","Arts subjects, projects, presentations and learning materials."],
+  ["🔧 Technical","Workshops, ICT, computer rooms and technical practicals."]
+ ];
+ $("main").innerHTML='<h1>School Dashboard</h1><div class="grid">'+cards.map(x=>'<div class="card"><h2>'+x[0]+'</h2><p>'+x[1]+'</p><button class="btn" onclick="page(\'departments\')">Open Department</button></div>').join('')+'</div><div class="card"><h2>School Operations</h2><p>Manage students, teachers, classes, subjects, CBT, practical assessments, attendance, fees, timetable and announcements from this dashboard.</p></div>';
+}
+async function departmentsPage(){
+ const {data,error}=await sb.from("departments").select("*").order("created_at",{ascending:false}).limit(100);
+ if(error)throw error;
+ $("main").innerHTML='<h1>Departments</h1><div class="grid">'+
+ '<div class="card"><h2>🔬 Science</h2><p>Physics • Chemistry • Biology • Mathematics</p><p><b>Facilities:</b> Laboratories and Demonstration Rooms</p></div>'+ 
+ '<div class="card"><h2>📚 Arts</h2><p>Literature • Government • History • Economics</p><p><b>Facilities:</b> Classrooms, Library and Project Rooms</p></div>'+ 
+ '<div class="card"><h2>🔧 Technical</h2><p>Technical subjects • ICT • Vocational training</p><p><b>Facilities:</b> Workshops and Computer Rooms</p></div>'+ 
+ '</div><h3>Database Departments</h3>'+table(data||[],["name","type","school_id","created_at"]);
+}
+async function practicalPage(){
+ $("main").innerHTML='<h1>Practical Management</h1><div class="grid">'+
+ '<div class="card"><h2>🔬 Science Practical</h2><p>Laboratory experiments, observation, measurements and practical examinations.</p></div>'+ 
+ '<div class="card"><h2>📚 Arts Practical</h2><p>Projects, presentations, field work, coursework and research activities.</p></div>'+ 
+ '<div class="card"><h2>🔧 Technical Practical</h2><p>Workshop tasks, computer practicals, tools and skill assessment.</p></div>'+ 
+ '</div><div class="card"><h2>Practical Assessment Workflow</h2><p>Teacher creates task → Student performs task → Teacher records score → Assessment score is saved → Result becomes available to student and parent.</p><button class="btn success" onclick="alert(\'Use assessments and assessment_scores tables to save practical scores.\')">Create Practical Assessment</button></div>';
+}
+async function roomsPage(){
+ const {data,error}=await sb.from("rooms").select("*").order("created_at",{ascending:false}).limit(100);
+ if(error)throw error;
+ $("main").innerHTML='<h1>Rooms & Facilities</h1><div class="grid">'+
+ '<div class="card"><h2>🏫 Classroom</h2><p>Normal academic teaching.</p></div>'+ 
+ '<div class="card"><h2>🧪 Laboratory</h2><p>Science practical activities.</p></div>'+ 
+ '<div class="card"><h2>🔬 Demonstration Room</h2><p>Science demonstrations and experiments.</p></div>'+ 
+ '<div class="card"><h2>💻 Computer Room</h2><p>CBT, ICT and computer practicals.</p></div>'+ 
+ '<div class="card"><h2>🔧 Workshop</h2><p>Technical practical training.</p></div>'+ 
+ '<div class="card"><h2>📚 Library</h2><p>Learning and research.</p></div>'+ 
+ '</div><h3>Registered Rooms</h3>'+table(data||[],["name","room_type","capacity","location","is_active"]);
+}
+async function bookingsPage(){
+ const {data,error}=await sb.from("room_bookings").select("*").order("created_at",{ascending:false}).limit(100);
+ if(error)throw error;
+ $("main").innerHTML='<h1>Room Bookings</h1><div class="card"><h3>Booking Workflow</h3><p>Teacher selects a room → chooses date/time → enters practical/lesson purpose → School Admin approves or rejects.</p><button class="btn" onclick="alert(\'Booking form connects to room_bookings.\')">New Booking Request</button></div>'+table(data||[],["room_id","requested_by","booking_date","start_time","end_time","status","purpose"]);
+}
+function ai(){$("main").innerHTML='<h1>AI Learning Assistant</h1><div class="card">AI is ready for API integration. Never put a private API key inside this HTML file.</div>'}
+function settings(){$("main").innerHTML='<h1>Settings</h1><div class="card"><p><b>Name:</b> '+esc(profile.full_name)+'</p><p><b>Email:</b> '+esc(profile.email)+'</p><p><b>Role:</b> '+esc(profile.role)+'</p></div>'}
+start();
+</script>
+</body></html>
